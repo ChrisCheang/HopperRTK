@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
-// #include <base64.h>  // PlatformIO lib: https://github.com/adamvr/arduino-base64
 #include "mbedtls/base64.h"
 
 // Wi-Fi credentials
@@ -9,12 +8,11 @@ const char *ssid = "Xiaomi 11T Pro";
 const char *password = "Ohyeaheh";
 
 // NTRIP Caster credentials
-const char *ntripHost = "RTK2go.com";  // Change to your caster
+const char *ntripHost = "RTK2go.com";  // Domain is better than IP for redirects
 const int ntripPort = 2101;
 const char *mountpoint = "SkywalkerRTKBase";
-const char *ntripUser = "ChrisCheang";
+const char *ntripUser = "chrischeanghk@gmail.com";
 const char *ntripPass = "Skywalker";
-
 
 WiFiClient client;
 
@@ -52,31 +50,21 @@ void setup() {
     return;
   }
 
-  // Convert base64 to String safely
   String auth = "";
   for (size_t i = 0; i < olen; i++) {
     auth += (char)b64_output[i];
   }
 
+  // Proper NTRIP request with Ntrip-Version header
+String req  = "GET /" + String(mountpoint) + " HTTP/1.0\r\n";
+req += "User-Agent: NTRIP ESP32/1.0\r\n";
+req += "Authorization: " + auth + "\r\n";
+req += "\r\n";
 
+client.print(req);
 
-  // Version 2
-  String req  = "GET /" + String(mountpoint) + " HTTP/1.0\r\n";
-  req += "User-Agent: ESP32 NTRIP 1.0\r\n";
-  req += "Authorization: Basic " + String(auth) + "\r\n";
-  client.write((const uint8_t*)req.c_str(), req.length());
-  client.flush();   // make sure it leaves the buffer
-  Serial.println("Sent header:\n" + req);
-
-
-  // Version 1
-  // // Send NTRIP v1 request
-  // client.print(String("GET /") + mountpoint + " HTTP/1.0\r\n");
-  // client.print("User-Agent: NTRIP ESP32Client/1.0\r\n");
-  // client.print("Authorization: Basic " + auth + "\r\n");
-  // client.print("\r\n");  // End of headers
-
-  // Serial.println("Sent NTRIP request...");
+  client.print(req);
+  Serial.println("Sent NTRIP request:\n" + req);
 
   // Wait for response
   while (client.connected() && !client.available()) delay(100);
@@ -98,13 +86,12 @@ void setup() {
     return;
   }
 
-  // Optional GGA sentence to keep stream alive (update with actual GPS pos)
+  // Correct GGA sentence based on your location
   const char *ggaSentence = "$GPGGA,123519.00,5129.8838,N,00010.6243,W,1,12,1.0,53.4,M,0.0,M,,*4C\r\n";
-  client.write((const uint8_t*)ggaSentence, strlen(ggaSentence));
+  client.write((const uint8_t *)ggaSentence, strlen(ggaSentence));
 
   Serial.println("Receiving RTCM/NMEA data...");
 }
-
 
 void loop() {
   if (client.connected()) {
@@ -117,6 +104,6 @@ void loop() {
     Serial.println("NTRIP connection lost.");
     client.stop();
     delay(5000);
-    ESP.restart();
+    ESP.restart();  // Reboot to try reconnect
   }
 }
